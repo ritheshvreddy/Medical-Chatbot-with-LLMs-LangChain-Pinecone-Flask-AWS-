@@ -1,15 +1,11 @@
-flask
-python-dotenv
-sentence-transformers
-pypdf
+langchain==0.3.26
+langchain-community==0.3.26
+langchain-openai==0.3.24
+langchain-pinecone==0.2.8
+langchain-groq==0.1.5
 
-langchain
-langchain-community
-langchain-pinecone
-langchain-openai
-langchain-groq
-langchain-google-genai
-
-pinecone-client
-
--e .
+flask==3.1.1
+sentence-transformers==4.1.0
+pypdf==5.6.1
+python-dotenv==1.1.0
+pinecone-client>=3.0.0
