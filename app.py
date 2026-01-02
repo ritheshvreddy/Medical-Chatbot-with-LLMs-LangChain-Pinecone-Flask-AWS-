@@ -14,26 +14,50 @@ from pinecone import Pinecone
 app = Flask(__name__)
 load_dotenv()
 
-# --- KEYS ---
-PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# =========================
+# ENVIRONMENT VARIABLES
+# =========================
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+missing_keys = []
+if not PINECONE_API_KEY:
+    missing_keys.append("PINECONE_API_KEY")
+if not GROQ_API_KEY:
+    missing_keys.append("GROQ_API_KEY")
+if not GEMINI_API_KEY:
+    missing_keys.append("GEMINI_API_KEY")
+
+if missing_keys:
+    raise RuntimeError(f"Missing required environment variables: {', '.join(missing_keys)}")
+
+# Set env vars explicitly for downstream SDKs
 os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY
 
-# --- PINECONE ---
+# =========================
+# PINECONE SETUP
+# =========================
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index_name = "medical-chatbot"
+
 embeddings = download_hugging_face_embeddings()
 
 docsearch = PineconeVectorStore.from_existing_index(
     index_name=index_name,
     embedding=embeddings
 )
-retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
+retriever = docsearch.as_retriever(
+    search_type="similarity",
+    search_kwargs={"k": 3}
+)
+
+# =========================
+# PROMPT
+# =========================
 prompt = ChatPromptTemplate.from_messages(
     [
         ("system", system_prompt),
@@ -41,6 +65,9 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
+# =========================
+# MODEL SELECTION
+# =========================
 PORT = int(os.environ.get("PORT", 5000))
 print(f"🔥 Running on port {PORT}")
 
@@ -62,9 +89,18 @@ elif use_gemini:
         google_api_key=GEMINI_API_KEY
     )
 
+else:
+    raise RuntimeError("Invalid PORT configuration. Use 5000 (Groq) or 5001 (Gemini).")
+
+# =========================
+# RAG CHAIN
+# =========================
 qa_chain = create_stuff_documents_chain(llm, prompt)
 rag_chain = create_retrieval_chain(retriever, qa_chain)
 
+# =========================
+# ROUTES
+# =========================
 @app.route("/")
 def index():
     name = "Groq (Llama-3)" if use_groq else "Gemini 2.5 Flash"
@@ -76,5 +112,8 @@ def ask():
     response = rag_chain.invoke({"input": msg})
     return response["answer"]
 
+# =========================
+# APP ENTRYPOINT
+# =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT)
