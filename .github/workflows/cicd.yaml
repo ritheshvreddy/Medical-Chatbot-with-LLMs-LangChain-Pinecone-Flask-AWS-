@@ -10,6 +10,7 @@ jobs:
   # CONTINUOUS INTEGRATION
   # =========================
   Continuous-Integration:
+    name: Build & Push Docker Image to ECR
     runs-on: ubuntu-latest
 
     steps:
@@ -21,7 +22,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+          aws-region: us-east-1
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -40,19 +41,20 @@ jobs:
   # CONTINUOUS DEPLOYMENT
   # =========================
   Continuous-Deployment:
+    name: Deploy Docker Image to EC2
     needs: Continuous-Integration
-    runs-on: [self-hosted, linux]
+    runs-on: self-hosted
 
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (EC2 runner)
+      - name: Configure AWS credentials (EC2 Runner)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+          aws-region: us-east-1
 
       - name: Login to Amazon ECR (EC2)
         id: login-ecr
@@ -62,16 +64,16 @@ jobs:
         run: |
           docker rm -f medical-chatbot || true
 
-      - name: Pull latest Docker image
+      - name: Pull latest image from ECR
         run: |
           docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO }}:latest
 
-      - name: Run latest Docker container
+      - name: Run Docker container
         run: |
           docker run -d \
             --name medical-chatbot \
             --restart unless-stopped \
-            -p 5000:5000 \
+            -p 8080:5000 \
             -e PORT=5000 \
             -e PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }} \
             -e GROQ_API_KEY=${{ secrets.GROQ_API_KEY }} \
